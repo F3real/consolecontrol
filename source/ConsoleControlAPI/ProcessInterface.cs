@@ -24,17 +24,7 @@ namespace ConsoleControlAPI
         /// </summary>
         public ProcessInterface()
         {
-            //  Configure the output worker.
-            outputWorker.WorkerReportsProgress = true;
-            outputWorker.WorkerSupportsCancellation = true;
-            outputWorker.DoWork += outputWorker_DoWork;
-            outputWorker.ProgressChanged += outputWorker_ProgressChanged;
 
-            //  Configure the error worker.
-            errorWorker.WorkerReportsProgress = true;
-            errorWorker.WorkerSupportsCancellation = true;
-            errorWorker.DoWork += errorWorker_DoWork;
-            errorWorker.ProgressChanged += errorWorker_ProgressChanged;
         }
 
         /// <summary>
@@ -59,21 +49,27 @@ namespace ConsoleControlAPI
         /// <param name="e">The <see cref="System.ComponentModel.DoWorkEventArgs"/> instance containing the event data.</param>
         void outputWorker_DoWork(object sender, DoWorkEventArgs e)
         {
+
             while (outputWorker.CancellationPending == false)
             {
-                //  Any lines to read?
-                int count;
-                var buffer = new char[1024];
-                do
+                try
                 {
-                    var builder = new StringBuilder();
-                    count = outputReader.Read(buffer, 0, 1024);
-                    builder.Append(buffer, 0, count);
-                    outputWorker.ReportProgress(0, builder.ToString());
-                } while (count > 0);
+                    //  Any lines to read?
+                    int count;
+                    var buffer = new char[1024];
+                    do
+                    {
+                        var builder = new StringBuilder();
+                        count = outputReader.Read(buffer, 0, 1024);
+                        builder.Append(buffer, 0, count);
+                        outputWorker.ReportProgress(0, builder.ToString());
+                    } while (count > 0 && outputReader != null);
 
-                System.Threading.Thread.Sleep(200);
-            }
+                    System.Threading.Thread.Sleep(10);
+                }
+                catch (Exception) { }
+            }    
+            e.Cancel = true;
         }
 
         /// <summary>
@@ -98,21 +94,27 @@ namespace ConsoleControlAPI
         /// <param name="e">The <see cref="System.ComponentModel.DoWorkEventArgs"/> instance containing the event data.</param>
         void errorWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-            while (errorWorker.CancellationPending == false)
+            while (errorWorker.CancellationPending == false && errorReader != null)
             {
-                //  Any lines to read?
-                int count;
-                var buffer = new char[1024];
-                do
+                try
                 {
-                    var builder = new StringBuilder();
-                    count = errorReader.Read(buffer, 0, 1024);
-                    builder.Append(buffer, 0, count);
-                    errorWorker.ReportProgress(0, builder.ToString());
-                } while (count > 0);
+                    //  Any lines to read?
+                    int count;
+                    var buffer = new char[1024];
+                    do
+                    {
+                        var builder = new StringBuilder();
+                        count = errorReader.Read(buffer, 0, 1024);
+                        builder.Append(buffer, 0, count);
+                        errorWorker.ReportProgress(0, builder.ToString());
+                    } while (count > 0 && errorReader != null);
 
-                System.Threading.Thread.Sleep(200);
+                    System.Threading.Thread.Sleep(10);
+                }
+                catch (Exception) {}
             }
+
+            e.Cancel = true;
         }
 
         /// <summary>
@@ -133,6 +135,20 @@ namespace ConsoleControlAPI
         /// <param name="processStartInfo"><see cref="ProcessStartInfo"/> to pass to the process.</param>
         public void StartProcess(ProcessStartInfo processStartInfo)
         {
+            //  Configure the output worker.
+            outputWorker = new BackgroundWorker();
+            outputWorker.WorkerReportsProgress = true;
+            outputWorker.WorkerSupportsCancellation = true;
+            outputWorker.DoWork += outputWorker_DoWork;
+            outputWorker.ProgressChanged += outputWorker_ProgressChanged;
+
+            //  Configure the error worker.
+            errorWorker = new BackgroundWorker();
+            errorWorker.WorkerReportsProgress = true;
+            errorWorker.WorkerSupportsCancellation = true;
+            errorWorker.DoWork += errorWorker_DoWork;
+            errorWorker.ProgressChanged += errorWorker_ProgressChanged;
+
             //  Set the options.
             processStartInfo.UseShellExecute = false;
             processStartInfo.ErrorDialog = false;
@@ -184,7 +200,6 @@ namespace ConsoleControlAPI
             //  Handle the trivial case.
             if (IsProcessRunning == false)
                 return;
-
             //  Kill the process.
             KillProcessTree(process.Id);
         }
@@ -218,7 +233,6 @@ namespace ConsoleControlAPI
                 // Process already exited.
             }
         }
- 
 
         /// <summary>
         /// Handles the Exited event of the currentProcess control.
@@ -227,6 +241,9 @@ namespace ConsoleControlAPI
         /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
         void currentProcess_Exited(object sender, EventArgs e)
         {
+            outputWorker.CancelAsync();
+            errorWorker.CancelAsync();
+
             //  Fire process exited.
             FireProcessExitEvent(process.ExitCode);
 
@@ -306,31 +323,31 @@ namespace ConsoleControlAPI
         /// The current process.
         /// </summary>
         private Process process;
-        
+
         /// <summary>
         /// The input writer.
         /// </summary>
         private StreamWriter inputWriter;
-        
+
         /// <summary>
         /// The output reader.
         /// </summary>
         private TextReader outputReader;
-        
+
         /// <summary>
         /// The error reader.
         /// </summary>
         private TextReader errorReader;
-        
+
         /// <summary>
         /// The output worker.
         /// </summary>
-        private BackgroundWorker outputWorker = new BackgroundWorker();
-        
+        private BackgroundWorker outputWorker;
+
         /// <summary>
         /// The error worker.
         /// </summary>
-        private BackgroundWorker errorWorker = new BackgroundWorker();
+        private BackgroundWorker errorWorker;
 
         /// <summary>
         /// Current process file name.
@@ -341,7 +358,7 @@ namespace ConsoleControlAPI
         /// Arguments sent to the current process.
         /// </summary>
         private string processArguments;
-        
+
         /// <summary>
         /// Occurs when process output is produced.
         /// </summary>
@@ -361,7 +378,7 @@ namespace ConsoleControlAPI
         /// Occurs when the process ends.
         /// </summary>
         public event ProcessEventHandler OnProcessExit;
-        
+
         /// <summary>
         /// Gets a value indicating whether this instance is process running.
         /// </summary>
