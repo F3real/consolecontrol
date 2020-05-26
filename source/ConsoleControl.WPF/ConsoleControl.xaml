@@ -19,6 +19,8 @@
     
     <!-- The internal rich text box for the console. -->
     <RichTextBox 
+        IsReadOnly="True"
+        VerticalScrollBarVisibility="Auto"
         x:Name="richTextBoxConsole" Foreground="White" 
         FontFamily="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type consoleControl:ConsoleControl}}, Path=FontFamily}"
         Background="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type consoleControl:ConsoleControl}}, Path=Background}"
