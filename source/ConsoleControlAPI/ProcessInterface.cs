@@ -3,6 +3,7 @@ using System.Text;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.IO;
+using System.Management;
 
 namespace ConsoleControlAPI
 {
@@ -185,8 +186,39 @@ namespace ConsoleControlAPI
                 return;
 
             //  Kill the process.
-            process.Kill();
+            KillProcessTree(process.Id);
         }
+
+        private static void KillProcessTree(int pid)
+        {
+            ManagementObjectSearcher processSearcher = new ManagementObjectSearcher
+              ("Select * From Win32_Process Where ParentProcessID=" + pid);
+            ManagementObjectCollection processCollection = processSearcher.Get();
+
+            // We must kill child processes first!
+            if (processCollection != null)
+            {
+                foreach (ManagementObject mo in processCollection)
+                {
+                    KillProcessTree(Convert.ToInt32(mo["ProcessID"])); //kill child processes(also kills childrens of childrens etc.)
+                }
+            }
+
+            // Then kill parents.
+            try
+            {
+                Process proc = Process.GetProcessById(pid);
+                if (!proc.HasExited)
+                {
+                    proc.Kill();
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Process already exited.
+            }
+        }
+ 
 
         /// <summary>
         /// Handles the Exited event of the currentProcess control.
